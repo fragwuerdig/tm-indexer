@@ -24,9 +24,8 @@ export class BlockFetcher {
     }
 
     async fetchBlock(height: number): Promise<BlockItem> {
-        const [blockRes, resultRes] = await Promise.all([
-          axios.get(`${RPC_URL}/block?height=${height}`),
-          axios.get(`${RPC_URL}/block_results?height=${height}`)
+        const [blockRes] = await Promise.all([
+          axios.get(`${RPC_URL}/block?height=${height}`)
         ]);
         var block = new BlockItem();
         block.height = height;
@@ -65,6 +64,7 @@ export class BlockFetcher {
         //await this.dataSource.initialize();
         var latestKnownHeight = await this.getLatestFetchedBlockHeight();
         while (true) {
+            const timeout = new Promise(resolve => setTimeout(resolve, 25)); 
             if (this.latestNetworkHeight <= latestKnownHeight) {
                 await new Promise(resolve => setTimeout(resolve, 5000));
                 continue;
@@ -80,7 +80,8 @@ export class BlockFetcher {
                 continue;
             }
             latestKnownHeight++;
-        }
+       	    await timeout;
+	}
     }
 
 }

@@ -1,6 +1,8 @@
 import { Column, Entity, PrimaryGeneratedColumn } from "typeorm";
 import { Message } from "../TxProcessor"
 
+type FilterObj = Filter | FilterAttrExists;
+
 export class Filter {
     event_name: string;
     attribute_key: string;
@@ -20,6 +22,27 @@ export class Filter {
                 if (attribute.value === this.attribute_value) {
                     return true;
                 }
+            }
+        }
+        return false;
+    }
+}
+
+export class FilterAttrExists {
+    event_name: string;
+    attribute_key: string;
+    
+    constructor(event_name: string, attribute_key: string) {
+        this.event_name = event_name;
+        this.attribute_key = attribute_key;
+    }
+    
+    filter(msg: Message): boolean {
+        const event = msg.events.find((e) => e.type === this.event_name);
+        if (event) {
+            const attribute = event.attributes.find((a) => a.key === this.attribute_key);
+            if (attribute) {
+                return true;
             }
         }
         return false;
@@ -52,7 +75,7 @@ export class Assigner {
 
 export interface EntityI {
     msg_type: string;
-    filters: Filter[];
+    filters: FilterObj[];
     assigners: Assigner[];
 }
 
@@ -60,7 +83,7 @@ export interface EntityI {
 export class EntityBase implements EntityI {
     
     msg_type: string;
-    filters: Filter[];
+    filters: FilterObj[];
     assigners: Assigner[];
 
     @PrimaryGeneratedColumn()
@@ -72,7 +95,7 @@ export class EntityBase implements EntityI {
     @Column()
     time!: Date;
     
-    constructor(msg_type: string, filters: Filter[], assigners: Assigner[]) {
+    constructor(msg_type: string, filters: FilterObj[], assigners: Assigner[]) {
         this.msg_type = msg_type;
         this.filters = filters;
         this.assigners = assigners;

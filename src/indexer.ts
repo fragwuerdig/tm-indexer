@@ -32,23 +32,27 @@ class TerminalOutput {
     }
 
     async update() {
+        const latestFetchedBlockHeight = await this.blockFetcher.getLatestFetchedBlockHeight()
+        const numProcessed = await this.txFetcher.getNumProcessedTxs()
+        const numTxs = await this.txFetcher.getNumTxs()
         this.terminal.clear();
         this.terminal.moveTo(1, 1)
-            .black('Fetched Blocks: ')
-            .green( await this.blockFetcher.getLatestFetchedBlockHeight() )
-            .black(' / ')
+            .green('Fetched Blocks: ')
+            .green( latestFetchedBlockHeight )
+            .green(' / ')
             .green( this.blockFetcher.latestNetworkHeight )
         this.terminal.moveTo(1, 2)
-            .black('Processed Txs: ')
-            .green( await this.txFetcher.getNumProcessedTxs() )
-            .black(' / ')
-            .green( await this.txFetcher.getNumTxs() )
+            .green('Processed Txs: ')
+            .green( numProcessed )
+            .green(' / ')
+            .green( numTxs)
     }
 
     async run () {
         while (true) {
+            const prom = new Promise(resolve => setTimeout(resolve, 1000));
             await this.update();
-            await new Promise(resolve => setTimeout(resolve, 1000));
+            await prom;
         }
     }
 

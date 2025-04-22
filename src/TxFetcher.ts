@@ -34,11 +34,13 @@ export class TxFetcher {
     }
 
     async saveTxs(txs: TxItem[]) {
-        const txItemRepository = await this.dataSource.getRepository(TxItem);
-        const prom = txs.map((item) => {
-            txItemRepository.save(item)
-        })
-        const res = await Promise.all(prom)
+        await this.dataSource
+        	.createQueryBuilder()
+                .insert()
+                .into(TxItem)
+                .values(txs)
+                .orIgnore()
+                .execute();
     }
 
     async getNumProcessedTxs(): Promise<number> {
@@ -69,7 +71,6 @@ export class TxFetcher {
     }
 
     async run() {
-        //await this.dataSource.initialize();
         while (true) {
             const blocks = await this.getUnprocessedBlocks()
             if (blocks.length == 0) {
@@ -83,7 +84,7 @@ export class TxFetcher {
             const flattenedTxs = txs.flat();
             const prom = [ this.saveTxs(flattenedTxs), this.markBlocksAsProcessed(blocks) ]
             await Promise.all(prom)
-            await new Promise(resolve => setTimeout(resolve, 100));
+            await new Promise(resolve => setTimeout(resolve, 80));
             this.latestBlock = blocks[blocks.length - 1].height;
         }
     }

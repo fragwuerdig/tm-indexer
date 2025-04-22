@@ -1,8 +1,9 @@
 import { DataSource } from "typeorm";
 import { Data } from "ws";
 import { TxItem } from "./entities/TxItem";
-import { EntityFactory } from "./entities/EntityI";
+import { EntityBase, EntityFactory } from "./entities/EntityI";
 import { ENTITIES } from "./indexer";
+import { resolve } from "path";
 
 export type Event = {
     type: string;
@@ -32,7 +33,7 @@ export class TxProcessor {
         this.dataSource = dataSource;
     }
 
-    async getUnprocessedTxs(page: number = 2): Promise<TxItem[]> {
+    async getUnprocessedTxs(page: number = 1): Promise<TxItem[]> {
         const txItemRepository = this.dataSource.getRepository(TxItem);
         const unprocessedTxs = await txItemRepository.find({
             where: { processed: false },
@@ -42,7 +43,7 @@ export class TxProcessor {
         return unprocessedTxs;
     }
 
-    async extractMessages(events: Event[]): Promise<Message[]> {
+    extractMessages(events: Event[]): Message[] {
         var msgs = new Map<number, Message>();
         for (const event of events) {
             if (event.attributes) {
@@ -76,56 +77,79 @@ export class TxProcessor {
 
     async handleTx(tx: TxItem) {
         const events = tx.getTxEvents();
-        const msgs = await this.extractMessages(events);
+        const msgs = this.extractMessages(events);
         const extendendMsgs = msgs.map((msg: Message) => {
             const txHash = tx.hash
             msg.tx = txHash;
             msg.time = tx.time;
             return msg;
         });
-        extendendMsgs.forEach((msg: Message) => {
-            this.handleMsg(msg);
+        const proms = extendendMsgs.map((msg: Message) => {
+            return this.handleMsg(msg);
         });
+        return await Promise.all(proms);
     }
 
     async handleMsg(msg: Message) {
-        ENTITIES.forEach(async (entityFactory: EntityFactory) => {
-            const entity = entityFactory.create();
-            
-            // filter by msg_type
-            if ( msg.type !== entity.msg_type ) {
-                return;
-            }
-
-            // filter by custom filters
-            if ( entity.filters.length > 0 ) {
-                for ( const filter of entity.filters ) {
-                    let isFilterOk = filter.filter(msg);
-                    if ( !isFilterOk ) {
-                        return;
+        const promises = ENTITIES
+            .filter((entityFactory: EntityFactory) => {
+                const entity = entityFactory.create();
+                // filter by msg_type
+                if ( msg.type !== entity.msg_type ) {
+                    return false;
+                }
+                // filter by custom filters
+                if ( entity.filters.length > 0 ) {
+                    for ( const filter of entity.filters ) {
+                        let isFilterOk = filter.filter(msg);
+                        if ( !isFilterOk ) {
+                            return false;
+                        }
                     }
                 }
-            }
-            
-            // assign values to entity
-            entity.assignValues(msg);
+                return true;
+            })
+            .map((entityFactory: EntityFactory) => {
+                const entity = entityFactory.create();
+                // assign values to entity
+                console.log("Msg: ", msg.events);
+                entity.assignValues(msg);
 
-            // save entity to database
-            await this.dataSource.manager.save(entity);
-        })
+                // save entity to database
+                return this.dataSource.manager.save(entity);
+            })
+        return await Promise.all(promises);
     }
 
     async run() {
         while (true) {
+
+            // Fetch unprocessed txs
             const txs = await this.getUnprocessedTxs();
             if (txs.length == 0) {
                 await new Promise(resolve => setTimeout(resolve, 5000));
                 continue;
             }
+
+            // handle each tx
             const tx = txs[0];
-            await this.handleTx(tx);
+            try {
+                await this.handleTx(tx);
+            } catch (error) {
+                console.error("Error processing tx: ", error);
+                await new Promise(resolve => setTimeout(resolve, 5000));
+                continue;
+            }
+            
+            // mark tx as processed
             tx.processed = true;
-            await this.dataSource.manager.save(tx);
+            try {
+                await this.dataSource.manager.save(tx);
+            } catch (error) {
+                console.error("Error saving tx: ", error);
+                await new Promise(resolve => setTimeout(resolve, 5000));
+                continue;
+            }
         }
     }
 
