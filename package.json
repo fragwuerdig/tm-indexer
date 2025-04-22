@@ -1,0 +1,28 @@
+{
+  "name": "tendermint-indexer",
+  "version": "1.0.0",
+  "main": "index.js",
+  "scripts": {
+    "dev": "ts-node src/indexer.ts"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "description": "",
+  "devDependencies": {
+    "@types/node": "^22.14.1",
+    "@types/ws": "^8.18.1",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.8.3"
+  },
+  "dependencies": {
+    "@types/terminal-kit": "^2.5.7",
+    "axios": "^1.8.4",
+    "isomorphic-ws": "^5.0.0",
+    "pg": "^8.14.1",
+    "reconnecting-websocket": "^4.4.0",
+    "reflect-metadata": "^0.2.2",
+    "terminal-kit": "^3.1.2",
+    "typeorm": "^0.3.22"
+  }
+}
