@@ -2,7 +2,6 @@ import { DataSource } from "typeorm";
 import { RPC_URL } from "./gobal";
 import { BlockItem } from "./entities/BlockItem";
 import axios from "axios";
-import { get } from "http";
 
 export class BlockFetcher {
 
@@ -65,22 +64,35 @@ export class BlockFetcher {
         var latestKnownHeight = await this.getLatestFetchedBlockHeight();
         while (true) {
             const timeout = new Promise(resolve => setTimeout(resolve, 25)); 
+            
+            // check if there are new blocks
             if (this.latestNetworkHeight <= latestKnownHeight) {
                 await new Promise(resolve => setTimeout(resolve, 5000));
                 continue;
             }
+            
+            // fetch new blocks
             let block: BlockItem;
             try {
                 block = await this.fetchBlock(latestKnownHeight);
-                this.saveBlock(block);
             } catch (error) {
                 console.error(`Error fetching block ${latestKnownHeight}:`, error);
-                const delay = Math.min(1000 * Math.pow(2, latestKnownHeight), 30000);
-                await new Promise(resolve => setTimeout(resolve, delay));
+                await new Promise(resolve => setTimeout(resolve, 10000));
                 continue;
             }
-            latestKnownHeight++;
+
+            // save new block to db
+            try {
+                await this.saveBlock(block);
+            } catch (error) {
+                console.error(`Error saving block ${latestKnownHeight}:`, error);
+                await new Promise(resolve => setTimeout(resolve, 10000));
+                continue;
+            }
+            
+            // throttle
        	    await timeout;
+            latestKnownHeight++;
 	}
     }
 

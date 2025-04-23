@@ -112,7 +112,6 @@ export class TxProcessor {
             .map((entityFactory: EntityFactory) => {
                 const entity = entityFactory.create();
                 // assign values to entity
-                console.log("Msg: ", msg.events);
                 entity.assignValues(msg);
 
                 // save entity to database

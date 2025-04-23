@@ -72,19 +72,50 @@ export class TxFetcher {
 
     async run() {
         while (true) {
+            const timeout = new Promise(resolve => setTimeout(resolve, 80));
+            
+            // get unprocessed blocks
             const blocks = await this.getUnprocessedBlocks()
             if (blocks.length == 0) {
                 await new Promise(resolve => setTimeout(resolve, 1000));
                 continue;
             }
+            
+            // get txs by height
+            let txs;
             const txProm = blocks.map((item) => {
                 return this.getTxsByHeight(item)
             })
-            const txs = await Promise.all(txProm)
+            try {
+                txs = await Promise.all(txProm)
+            } catch (e) {
+                console.error("Error: ", e)
+                await new Promise(resolve => setTimeout(resolve, 1000));
+                continue;
+            }
+            
+            // save txs to db
             const flattenedTxs = txs.flat();
-            const prom = [ this.saveTxs(flattenedTxs), this.markBlocksAsProcessed(blocks) ]
-            await Promise.all(prom)
-            await new Promise(resolve => setTimeout(resolve, 80));
+            try {
+                await this.saveTxs(flattenedTxs)
+            }
+            catch (e) {
+                console.error("Error: ", e)
+                await new Promise(resolve => setTimeout(resolve, 1000));
+                continue;
+            }
+            
+            // mark blocks as processed
+            try {
+                await this.markBlocksAsProcessed(blocks);
+            } catch (e) {
+                console.error("Error: ", e)
+                await new Promise(resolve => setTimeout(resolve, 1000));
+                continue;
+            }
+            
+            // throttle
+            await timeout;
             this.latestBlock = blocks[blocks.length - 1].height;
         }
     }
