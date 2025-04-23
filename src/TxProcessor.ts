@@ -33,7 +33,7 @@ export class TxProcessor {
         this.dataSource = dataSource;
     }
 
-    async getUnprocessedTxs(page: number = 1): Promise<TxItem[]> {
+    async getUnprocessedTxs(page: number = 50): Promise<TxItem[]> {
         const txItemRepository = this.dataSource.getRepository(TxItem);
         const unprocessedTxs = await txItemRepository.find({
             where: { processed: false },
@@ -131,19 +131,28 @@ export class TxProcessor {
             }
 
             // handle each tx
-            const tx = txs[0];
+            const txsProm =  txs.map((tx: TxItem) => {
+                return this.handleTx(tx);
+            })
             try {
-                await this.handleTx(tx);
+                await Promise.all(txsProm);
             } catch (error) {
                 console.error("Error processing tx: ", error);
-                await new Promise(resolve => setTimeout(resolve, 5000));
+                await new Promise(resolve => setTimeout(resolve, 1000));
                 continue;
             }
             
             // mark tx as processed
-            tx.processed = true;
+            const markedTxs = txs.map((tx: TxItem) => {
+                var newTx = tx;
+                newTx.processed = true;
+                return tx;
+            });
+            const saveProms = markedTxs.map((tx: TxItem) => {
+                return this.dataSource.manager.save(tx);
+            })
             try {
-                await this.dataSource.manager.save(tx);
+                await Promise.all(saveProms);
             } catch (error) {
                 console.error("Error saving tx: ", error);
                 await new Promise(resolve => setTimeout(resolve, 5000));
