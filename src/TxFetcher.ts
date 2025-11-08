@@ -1,25 +1,25 @@
 import { DataSource, MoreThan } from "typeorm";
-import { RPC_URL } from "./gobal";
 import { BlockItem } from "./entities/BlockItem";
 import { TxItem } from "./entities/TxItem";
 import axios from "axios";
-import { get } from "http";
+import { getChainRpcUrl } from "./config";
 
 export class TxFetcher {
 
     dataSource: DataSource;
     latestNetworkHeight: number = 0;
     latestBlock: number = 0;
+    running: boolean = false;
 
     constructor(dataSource: DataSource) {
         this.dataSource = dataSource;
     }
 
-    async getUnprocessedBlocks(page: number = 2): Promise<BlockItem[]> {
+    async getUnprocessedBlocks(page: number = 200): Promise<BlockItem[]> {
         const blockItemRepository = this.dataSource.getRepository(BlockItem);
         const unprocessedBlocks = await blockItemRepository.find({
             where: { processed: false, num_txs: MoreThan(0) },
-            order: { height: "ASC" },
+            order: { time: "DESC" },
             take: page,
         });
         return unprocessedBlocks;
@@ -55,7 +55,7 @@ export class TxFetcher {
  
     async getTxsByHeight(blockItem: BlockItem): Promise<TxItem[]> {
         //https://tmrpc.vscblockchain.org/tx_search?query=%22redeem_token_packet.success=%27true%27%20AND%20tx.height=413480%22
-        const res = await axios.get(`${RPC_URL}/tx_search?query=%22tx.height=${blockItem.height}%22`);
+        const res = await axios.get(`${getChainRpcUrl(blockItem.chain_id)}/tx_search?query=%22tx.height=${blockItem.height}%22`);
         const txs = res.data.result.txs;
         const txsMapped = txs.map((tx: any) => {
             const txItem = new TxItem()
@@ -63,6 +63,7 @@ export class TxFetcher {
             txItem.height = Number(tx.height)
             txItem.time = new Date(blockItem.time)
             txItem.tx_result = JSON.stringify(tx.tx_result)
+            txItem.chain_id = blockItem.chain_id
             return txItem
         })
         return txsMapped
@@ -70,7 +71,8 @@ export class TxFetcher {
 
     async run() {
         //await this.dataSource.initialize();
-        while (true) {
+        this.running = true;
+        while (this.running) {
             const blocks = await this.getUnprocessedBlocks()
             if (blocks.length == 0) {
                 await new Promise(resolve => setTimeout(resolve, 1000));
@@ -86,6 +88,11 @@ export class TxFetcher {
             await new Promise(resolve => setTimeout(resolve, 100));
             this.latestBlock = blocks[blocks.length - 1].height;
         }
+        return true;
+    }
+
+    stop() {
+        this.running = false;
     }
 
 }

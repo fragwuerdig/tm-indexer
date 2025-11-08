@@ -5,6 +5,9 @@ export class BlockItem {
 
     @PrimaryColumn()
     height!: number;
+
+    @Column()
+    hash!: string;
     
     @Column()
     time!: string;
@@ -14,5 +17,8 @@ export class BlockItem {
 
     @Column()
     processed: boolean = false;
+
+    @Column()
+    chain_id!: string;
 
 };

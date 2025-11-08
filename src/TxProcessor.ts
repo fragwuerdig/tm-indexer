@@ -22,53 +22,56 @@ export type Message = {
     time: Date;
     events: Event[];
     index: number;
+    chain_id: string;
 }
 
 export class TxProcessor {
 
     private dataSource: DataSource;
+    private running: boolean = false;
 
     constructor(dataSource: DataSource) {
         this.dataSource = dataSource;
     }
 
-    async getUnprocessedTxs(page: number = 2): Promise<TxItem[]> {
+    async getUnprocessedTxs(page: number = 100): Promise<TxItem[]> {
         const txItemRepository = this.dataSource.getRepository(TxItem);
-        const unprocessedTxs = await txItemRepository.find({
-            where: { processed: false },
-            order: { height: "ASC" },
-            take: page,
-        });
+        const unprocessedTxs = await txItemRepository.createQueryBuilder("tx")
+            .where("tx.processed = :processed", { processed: false })
+            .orderBy("tx.time", "ASC")
+            .take(page)
+            .getMany();
         return unprocessedTxs;
     }
 
-    async extractMessages(events: Event[]): Promise<Message[]> {
+    async extractMessages(chain_id: string,events: Event[]): Promise<Message[]> {
         var msgs = new Map<number, Message>();
+        var currentMsgIndex = -1;
+        var currentMsgAction = '';
+        var currentMsgSender = '';
         for (const event of events) {
             if (event.attributes) {
-                let found = event.attributes.find((a: Attribute) => {
-                    return a.key === 'msg_index'
-                })
-                if (!found) {
+                let isActionEvent = event.type === 'message' && event.attributes.find((a: Attribute) => a.key === 'action');
+                if (isActionEvent) {
+                    currentMsgAction = event.attributes.find((a: Attribute) => a.key === 'action')?.value || '';
+                    currentMsgSender = event.attributes.find((a: Attribute) => a.key === 'sender')?.value || '';
+                    currentMsgIndex += 1;
+                }
+
+                if ( currentMsgIndex == -1 ) {
                     continue;
                 }
-                let isActionEvent = event.type === 'message' && event.attributes.find((a: Attribute) => a.key === 'action');
-                let messageAction = ''
-                let messageSender = ''
-                if (isActionEvent) {
-                    messageAction = event.attributes.find((a: Attribute) => a.key === 'action')?.value || '';
-                    messageSender = event.attributes.find((a: Attribute) => a.key === 'sender')?.value || '';
-                }
-                let index = parseInt(found.value, 10);
-                let eventsLoc: Message = msgs.get(index) || {
-                    type: messageAction,
-                    sender: messageSender,
-                    index: index,
+
+                let eventsLoc: Message = msgs.get(currentMsgIndex) || {
+                    type: currentMsgAction,
+                    sender: currentMsgSender,
+                    index: currentMsgIndex,
                     time: new Date(),
-                    events: []
+                    events: [],
+                    chain_id: chain_id
                 };
                 eventsLoc.events.push(event);
-                msgs.set(index, eventsLoc);
+                msgs.set(currentMsgIndex, eventsLoc);
             }
         }
         return Array.from(msgs.values());
@@ -76,7 +79,7 @@ export class TxProcessor {
 
     async handleTx(tx: TxItem) {
         const events = tx.getTxEvents();
-        const msgs = await this.extractMessages(events);
+        const msgs = await this.extractMessages(tx.chain_id, events);
         const extendendMsgs = msgs.map((msg: Message) => {
             const txHash = tx.hash
             msg.tx = txHash;
@@ -92,8 +95,8 @@ export class TxProcessor {
         ENTITIES.forEach(async (entityFactory: EntityFactory) => {
             const entity = entityFactory.create();
             
-            // filter by msg_type
-            if ( msg.type !== entity.msg_type ) {
+            // filter by msg_type id (if specified)
+            if ( entity.msg_type && msg.type !== entity.msg_type ) {
                 return;
             }
 
@@ -116,17 +119,26 @@ export class TxProcessor {
     }
 
     async run() {
-        while (true) {
-            const txs = await this.getUnprocessedTxs();
+        this.running = true;
+        while (this.running) {
+            const txs = await this.getUnprocessedTxs(100);
             if (txs.length == 0) {
                 await new Promise(resolve => setTimeout(resolve, 5000));
                 continue;
             }
-            const tx = txs[0];
-            await this.handleTx(tx);
-            tx.processed = true;
-            await this.dataSource.manager.save(tx);
+            await Promise.all(
+                txs.map(async (tx) => {
+                    await this.handleTx(tx);
+                    tx.processed = true;
+                    await this.dataSource.manager.save(tx);
+                })
+            );
         }
+        return true;
+    }
+
+    stop() {
+        this.running = false;
     }
 
 }

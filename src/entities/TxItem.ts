@@ -18,6 +18,9 @@ export class TxItem {
     time!: Date;
 
     @Column()
+    chain_id!: string;
+
+    @Column()
     processed: boolean = false;
 
     getTxEvents(): Event[] {
