@@ -1,8 +1,8 @@
 import { DataSource, MoreThan } from "typeorm";
-import { BlockItem } from "./entities/BlockItem";
-import { TxItem } from "./entities/TxItem";
+import { BlockItem } from "../entities/BlockItem";
+import { TxItem } from "../entities/TxItem";
 import axios from "axios";
-import { getChainRpcUrl } from "./config";
+import { getChainRpcUrl } from "../misc/config";
 
 export class TxFetcher {
 

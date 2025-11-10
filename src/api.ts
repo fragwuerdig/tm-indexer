@@ -5,7 +5,10 @@ import dotenv from 'dotenv';
 dotenv.config();
 
 const app = express();
-const port = process.env.PORT || 3000;
+const port = process.env.API_PORT || 3000;
+
+console.log(port);
+type TransferResultType = 'timedout' | 'acknowledged';
 
 app.use(express.json());
 
@@ -38,17 +41,25 @@ app.get('/api/v1/transfers', async (req: Request, res: Response) => {
     
     dataSource.isInitialized || await dataSource.initialize();
     
-    const page = parseInt(req.query.page as string) || 1;
+    const page = Math.max(0, parseInt(req.query.page as string) || 0);
     const limit = parseInt(req.query.limit as string) || 20;
-
-    console.log(`Fetching transfers - Page: ${page}, Limit: ${limit}`);
+    const result = req.query.result as string | undefined;
+    const relayer = req.query.relayer as string | undefined;
+    const timeframe = parseInt(req.query.timeframe as string) || undefined;
     
     try {
+        const where: any = {};
+        if (result) { where.result_type = result as TransferResultType; }
+        if (relayer) { where.relayer = relayer; }
+        if (timeframe) { where.initiated = { $gte: new Date(Date.now() - timeframe * 1000) }; }
+
         const transfers = await dataSource.getRepository(IbcFullTransferFlowView).find({
-            skip: (page - 1) * limit,
+            where,
+            skip: page * limit,
             take: limit,
-            order: { initiated: 'DESC' }
+            order: { initiated: 'DESC' },
         });
+        
         res.json(transfers);
     } catch (error) {
         res.status(500).json({ error: `Failed to fetch transfers: ${error}` });

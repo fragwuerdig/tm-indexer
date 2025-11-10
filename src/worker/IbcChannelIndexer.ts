@@ -1,6 +1,6 @@
-import { SendPacketTransfer } from './entities/IbcSendPacketTransfer';
+import { SendPacketTransfer } from '../entities/IbcSendPacketTransfer';
 import { DataSource } from 'typeorm';
-import { ChannelPair } from './entities/ChannelPair';
+import { ChannelPair } from '../entities/ChannelPair';
 
 export class IbcChannelIndexer {
     private dataSource: DataSource;

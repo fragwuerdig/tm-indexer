@@ -1,8 +1,8 @@
 import { DataSource } from "typeorm";
 import { Data } from "ws";
-import { TxItem } from "./entities/TxItem";
-import { EntityFactory } from "./entities/EntityI";
-import { ENTITIES } from "./indexer";
+import { TxItem } from "../entities/TxItem";
+import { EntityFactory } from "../entities/EntityI";
+import { ENTITIES } from "../indexer";
 
 export type Event = {
     type: string;

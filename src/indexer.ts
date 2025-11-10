@@ -1,17 +1,17 @@
 
 import { DataSource } from 'typeorm';
-import { BlockFetcher } from './BlockFetcher';
-import { TxFetcher } from './TxFetcher';
+import { BlockFetcher } from './worker/BlockFetcher';
+import { TxFetcher } from './worker/TxFetcher';
 import winston from 'winston';
-import { TxProcessor } from "./TxProcessor";
+import { TxProcessor } from "./worker/TxProcessor";
 import dotenv from 'dotenv';
 import { RecvPacketTransferFactory } from './entities/IbcRecvPacketTransfer';
 import { SendPacketTransferFactory } from './entities/IbcSendPacketTransfer';
 import { AcknowledgePacketFactory } from './entities/IbcAcknowledgePacket';
 import { TimeoutPacketFactory } from './entities/IbcTimeoutPacket';
 
-import { CHAIN_IDS } from './gobal';
-import { IbcChannelIndexer } from './IbcChannelIndexer';
+import { CHAIN_IDS } from './misc/gobal';
+import { IbcChannelIndexer } from './worker/IbcChannelIndexer';
 
 // define the to be indexed entities here
 export const ENTITIES = [

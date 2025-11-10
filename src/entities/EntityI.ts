@@ -1,5 +1,5 @@
 import { Column, Entity, PrimaryGeneratedColumn } from "typeorm";
-import { Message } from "../TxProcessor"
+import { Message } from "../worker/TxProcessor"
 
 export class Filter {
     event_name: string;

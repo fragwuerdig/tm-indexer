@@ -101,9 +101,9 @@ export class BlockFetcher {
 }*/
 
 import { DataSource } from "typeorm";
-import { BlockItem } from "./entities/BlockItem";
+import { BlockItem } from "../entities/BlockItem";
 import axios from "axios";
-import { getChainRpcUrl, getChainStartHeight } from "./config";
+import { getChainRpcUrl, getChainStartHeight } from "../misc/config";
 
 export class BlockFetcher {
     dataSource: DataSource;
@@ -181,7 +181,6 @@ export class BlockFetcher {
                 }
 
                 const toFetch = [...newHeights, ...oldHeights];
-                console.log(toFetch);
 
                 if (toFetch.length > 0) {
                     await Promise.all(

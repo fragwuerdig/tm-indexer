@@ -1,5 +1,5 @@
 import { Column, Entity, PrimaryColumn } from "typeorm";
-import { Event } from "../TxProcessor"
+import { Event } from "../worker/TxProcessor"
 
 
 @Entity()

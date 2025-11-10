@@ -1,6 +1,4 @@
-import { Column, Entity, Unique, PrimaryColumn, PrimaryGeneratedColumn } from "typeorm";
-import { Event } from "../TxProcessor"
-
+import { Column, Entity, Unique, PrimaryGeneratedColumn } from "typeorm";
 
 @Entity()
 @Unique(["src_channel", "dest_channel", "src_port", "dest_port", "from_chain_id"])

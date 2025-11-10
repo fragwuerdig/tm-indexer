@@ -15,4 +15,4 @@ RUN npm ci
 COPY . .
 
 # Default command to run the app with ts-node
-CMD ["ts-node", "src/indexer.ts"]
+CMD ["ts-node", "src/api.ts"]
