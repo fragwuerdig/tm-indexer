@@ -176,3 +176,48 @@ app.get('/api/v1/binned_txs', async (req: Request, res: Response) => {
 app.listen(port, () => {
     console.log(`API server listening on port ${port}`);
 });
+
+app.get('/api/v1/amount_txs', async (req: Request, res: Response) => {
+
+    dataSource.isInitialized || await dataSource.initialize();
+
+    let relayer = req.query.relayers as string | undefined;
+    if (relayer === "all") relayer = undefined;
+
+    let types = req.query.type as string | undefined;
+    if (types === "all") types = undefined;
+
+    try {
+        const where: any = {};
+        
+        if (relayer) {
+            const relayers = relayer.split(",").map(r => r.trim()).filter(Boolean);
+            console.log("Filtering by relayers:", relayers);
+            if (relayers.length > 0) {
+                where.relayer = In(relayers);
+            }
+        }
+        
+        if (types) {
+            const typesArray = types.split(",").filter((type) => type === 'timeout' || type === 'receive' || type === 'acknowledge') as ('timeout' | 'receive' | 'acknowledge')[];
+            if (typesArray.length > 0) {
+                where.type = In(typesArray);
+            }
+        }
+        
+        const txs = await dataSource
+            .getRepository(IbcRelayTxsView)
+            .createQueryBuilder("tx")
+            .select("tx.tx_type", "type")
+            .addSelect("COUNT(*)", "count")
+            .where(where)
+            .groupBy("tx.tx_type")
+            .getRawMany();
+        
+        res.json(txs);
+
+    } catch (error) {
+        res.status(500).json({ error: `Failed to fetch amount txs: ${error}` });
+    }
+
+});
