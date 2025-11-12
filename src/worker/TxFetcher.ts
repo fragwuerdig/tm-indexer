@@ -10,9 +10,11 @@ export class TxFetcher {
     latestNetworkHeight: number = 0;
     latestBlock: number = 0;
     running: boolean = false;
+    agent: any;
 
-    constructor(dataSource: DataSource) {
+    constructor(dataSource: DataSource, agent: any) {
         this.dataSource = dataSource;
+        this.agent = agent;
     }
 
     async getUnprocessedBlocks(page: number = 200): Promise<BlockItem[]> {
@@ -55,7 +57,30 @@ export class TxFetcher {
  
     async getTxsByHeight(blockItem: BlockItem): Promise<TxItem[]> {
         //https://tmrpc.vscblockchain.org/tx_search?query=%22redeem_token_packet.success=%27true%27%20AND%20tx.height=413480%22
-        const res = await axios.get(`${getChainRpcUrl(blockItem.chain_id)}/tx_search?query=%22tx.height=${blockItem.height}%22`);
+        
+        let res;
+
+        let attempts = 0;
+        while (attempts < 3) {
+            try {
+                res = await axios.get(`${getChainRpcUrl(blockItem.chain_id)}/tx_search?query=%22tx.height=${blockItem.height}%22`, { httpsAgent: this.agent });
+                break;
+            } catch (e) {
+                attempts++;
+                console.error(`Error fetching txs for height ${blockItem.height} (attempt ${attempts}):`, e);
+                if (attempts < 3) {
+                    console.error("Retrying in 3 seconds...");
+                    await new Promise(resolve => setTimeout(resolve, 3000));
+                } else {
+                    throw new Error(`Failed to fetch txs for height ${blockItem.height} after 3 attempts.`);
+                }
+            }
+        }
+        
+        if (!res || !res.data || !res.data.result || !res.data.result.txs) {
+            throw new Error(`Invalid response fetching txs for height ${blockItem.height}`);
+        }
+
         const txs = res.data.result.txs;
         const txsMapped = txs.map((tx: any) => {
             const txItem = new TxItem()

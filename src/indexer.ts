@@ -9,6 +9,7 @@ import { RecvPacketTransferFactory } from './entities/IbcRecvPacketTransfer';
 import { SendPacketTransferFactory } from './entities/IbcSendPacketTransfer';
 import { AcknowledgePacketFactory } from './entities/IbcAcknowledgePacket';
 import { TimeoutPacketFactory } from './entities/IbcTimeoutPacket';
+import https from "https";
 
 import { CHAIN_IDS } from './misc/gobal';
 import { IbcChannelIndexer } from './worker/IbcChannelIndexer';
@@ -65,6 +66,16 @@ const main = async() => {
         process.exit(1);
     }
 
+    if (CHAIN_IDS.length === 0) {
+        console.error("Please set at least one CHAIN_ID in the CHAIN_IDS array in src/misc/gobal.ts");
+        process.exit(1);
+    }
+
+    const agent = new https.Agent({
+        keepAlive: true,
+        maxSockets: 10,
+    });
+
     const dataSource = new DataSource({
         type: "postgres",
         host: process.env.DB_HOST,
@@ -74,11 +85,19 @@ const main = async() => {
         database: process.env.DB_NAME,
         synchronize: true,
         logging: false,
+        migrations: ["src/migrations/*.ts"],
         entities: ["src/entities/!(EntityI).ts"],
     });
 
-    const blockFetchers = CHAIN_IDS.map(chainId => new BlockFetcher(dataSource, chainId));
-    const txFetcher = new TxFetcher(dataSource);
+    console.log("Initializing data source...");
+    await dataSource.initialize()
+
+    console.log("Running migrations...");
+    await dataSource.runMigrations();
+
+    console.log("Creating BlockFetchers, TxFetcher, TxProcessor and TerminalOutput...");
+    const blockFetchers = CHAIN_IDS.map(chainId => new BlockFetcher(dataSource, chainId, agent));
+    const txFetcher = new TxFetcher(dataSource, agent);
     const txProcessor = new TxProcessor(dataSource);
     const channelIndexer = new IbcChannelIndexer(dataSource);
     const terminal = new TerminalOutput(blockFetchers, txFetcher, winston.createLogger({
@@ -91,14 +110,25 @@ const main = async() => {
             new winston.transports.Console()
         ]
     }));
-    
-    await dataSource.initialize()
 
-    let blockFetcherPromises = blockFetchers.map(blockFetcher => blockFetcher.run());
-    let txFetcherPromise = txFetcher.run();
-    let txProcessorPromise = txProcessor.run();
-    let terminalPromise = terminal.run();
-    let channelIndexerPromise = channelIndexer.run();
+    console.log("Starting BlockFetchers, TxFetcher, TxProcessor and TerminalOutput...");
+    let blockFetcherPromises = blockFetchers.map(blockFetcher => blockFetcher.run().catch((err: any) => {
+        console.error(`BlockFetcher ${blockFetcher.chainId} encountered an error:`, err);
+    }));
+    let txFetcherPromise = txFetcher.run().catch(err => {
+        console.error("TxFetcher encountered an error:", err);
+    });
+    let txProcessorPromise = txProcessor.run().catch(err => {
+        console.error("TxProcessor encountered an error:", err);
+    });
+    let terminalPromise = terminal.run().catch(err => {
+        console.error("TerminalOutput encountered an error:", err);
+    });
+    let channelIndexerPromise = channelIndexer.run().catch(err => {
+        console.error("IbcChannelIndexer encountered an error:", err);
+    });
+
+    console.log("All components started.");
 
     process.on('SIGINT', async () => {
         console.log('Gracefully shutting down...');
@@ -109,8 +139,12 @@ const main = async() => {
         channelIndexer.stop();
         await Promise.all([...blockFetcherPromises, txFetcherPromise, txProcessorPromise, terminalPromise, channelIndexerPromise]);
         await dataSource.destroy();
+        await agent.destroy();
         process.exit(0);
     });
+
+    await Promise.all([...blockFetcherPromises, txFetcherPromise, txProcessorPromise, terminalPromise, channelIndexerPromise]);
+
 
 }
 

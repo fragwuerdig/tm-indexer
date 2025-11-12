@@ -5,14 +5,13 @@ WORKDIR /app
 # Install ts-node and typescript globally
 RUN npm install -g ts-node typescript
 
-# Copy package.json and package-lock.json if present
+# Copy source files
+COPY src ./src
+COPY tsconfig.json ./
 COPY package*.json ./
 
 # Install dependencies
 RUN npm ci
-
-# Copy source files
-COPY . .
 
 # Default command to run the app with ts-node
 CMD ["ts-node", "src/indexer.ts"]

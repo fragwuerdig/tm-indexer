@@ -1,5 +1,4 @@
 import { DataSource } from "typeorm";
-import { Data } from "ws";
 import { TxItem } from "../entities/TxItem";
 import { EntityFactory } from "../entities/EntityI";
 import { ENTITIES } from "../indexer";
@@ -38,7 +37,7 @@ export class TxProcessor {
         const txItemRepository = this.dataSource.getRepository(TxItem);
         const unprocessedTxs = await txItemRepository.createQueryBuilder("tx")
             .where("tx.processed = :processed", { processed: false })
-            .orderBy("tx.time", "ASC")
+            .orderBy("tx.time", "DESC")
             .take(page)
             .getMany();
         return unprocessedTxs;
